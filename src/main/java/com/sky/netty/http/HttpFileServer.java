@@ -10,8 +10,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpRequestEncoder;
+import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.stream.ChunkedWriteHandler;
-import sun.reflect.generics.scope.Scope;
 
 /**
  * @author sky
@@ -20,7 +20,7 @@ import sun.reflect.generics.scope.Scope;
  */
 public class HttpFileServer {
 
-    private static final String DEFAULT_URL = "/src/com/sky/netty";
+    private static final String DEFAULT_URL = "/src/main/java/com/sky/netty/";
 
     public void run(final int port, final String url) throws Exception{
         EventLoopGroup bossGroup = new NioEventLoopGroup();
@@ -36,14 +36,14 @@ public class HttpFileServer {
                             socketChannel.pipeline().addLast("http-decoder", new HttpRequestDecoder());
                             //将多个消息转化为单个FullHttpRequest或者FullHttpResponse
                             socketChannel.pipeline().addLast("http-aggregator", new HttpObjectAggregator(65535));
-                            socketChannel.pipeline().addLast("http-encoder", new HttpRequestEncoder());
+                            socketChannel.pipeline().addLast("http-encoder", new HttpResponseEncoder());
                             //支持发送大的码流
                             socketChannel.pipeline().addLast("http-chunked", new ChunkedWriteHandler());
                             socketChannel.pipeline().addLast("fileServerHandler", new HttpFileServerHandler(url));
                         }
                     });
-            ChannelFuture future = b.bind("192.168.3.15", port).sync();
-            System.out.println("HTTP文件目录服务器启动，地址是 ：http://192.168.3.15:" + port + url);
+            ChannelFuture future = b.bind("192.168.3.13", port).sync();
+            System.out.println("HTTP文件目录服务器启动，地址是 ：http://192.168.3.13:" + port + url);
             future.channel().closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();
@@ -57,7 +57,7 @@ public class HttpFileServer {
             try{
                 port = Integer.valueOf(args[0]);
             }catch(NumberFormatException e){
-
+                e.printStackTrace();
             }
         }
         String url = DEFAULT_URL;

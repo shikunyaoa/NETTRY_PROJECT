@@ -34,45 +34,45 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 /**
  * @author asus
  */
-public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
-
-	private String url;
+public class HttpFileServerHandler extends
+		SimpleChannelInboundHandler<FullHttpRequest> {
+	private final String url;
 
 	public HttpFileServerHandler(String url) {
 		this.url = url;
 	}
 
 	@Override
-	protected void messageReceived(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
-		if(!request.decoderResult().isSuccess()){
+	public void messageReceived(ChannelHandlerContext ctx,
+								FullHttpRequest request) throws Exception {
+		if (!request.decoderResult().isSuccess()) {
 			sendError(ctx, BAD_REQUEST);
 			return;
 		}
-
-		if(request.method() != GET){
+		if (request.method() != GET) {
 			sendError(ctx, METHOD_NOT_ALLOWED);
 			return;
 		}
-
 		final String uri = request.uri();
-		final String path =sanitizeUri(uri);
-		if(path == null){
+		final String path = sanitizeUri(uri);
+		if (path == null) {
 			sendError(ctx, FORBIDDEN);
 			return;
 		}
 		File file = new File(path);
-		if(file.isHidden() || !file.exists()){
+		if (file.isHidden() || !file.exists()) {
 			sendError(ctx, NOT_FOUND);
+			return;
 		}
-		if(file.isDirectory()){
-			if(uri.endsWith("/")){
+		if (file.isDirectory()) {
+			if (uri.endsWith("/")) {
 				sendListing(ctx, file);
-			}else{
+			} else {
 				sendRedirect(ctx, uri + '/');
 			}
 			return;
 		}
-		if(!file.isFile()){
+		if (!file.isFile()) {
 			sendError(ctx, FORBIDDEN);
 			return;
 		}
@@ -117,9 +117,7 @@ public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpR
 		if (!isKeepAlive(request)) {
 			lastContentFuture.addListener(ChannelFutureListener.CLOSE);
 		}
-
 	}
-
 
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
@@ -129,15 +127,38 @@ public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpR
 			sendError(ctx, INTERNAL_SERVER_ERROR);
 		}
 	}
-	private void sendRedirect(ChannelHandlerContext ctx, String newUri) {
-		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, FOUND);
-		response.headers().set(LOCATION, newUri);
-		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+
+	private static final Pattern INSECURE_URI = Pattern.compile(".*[<>&\"].*");
+
+	private String sanitizeUri(String uri) {
+		try {
+			uri = URLDecoder.decode(uri, "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			try {
+				uri = URLDecoder.decode(uri, "ISO-8859-1");
+			} catch (UnsupportedEncodingException e1) {
+				throw new Error();
+			}
+		}
+		if (!uri.startsWith(url)) {
+			return null;
+		}
+		if (!uri.startsWith("/")) {
+			return null;
+		}
+		uri = uri.replace('/', File.separatorChar);
+		if (uri.contains(File.separator + '.')
+				|| uri.contains('.' + File.separator) || uri.startsWith(".")
+				|| uri.endsWith(".") || INSECURE_URI.matcher(uri).matches()) {
+			return null;
+		}
+		return System.getProperty("user.dir")  + uri;
 	}
 
 	private static final Pattern ALLOWED_FILE_NAME = Pattern
 			.compile("[A-Za-z0-9][-_A-Za-z0-9\\.]*");
-	private void sendListing(ChannelHandlerContext ctx, File dir) {
+
+	private static void sendListing(ChannelHandlerContext ctx, File dir) {
 		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, OK);
 		response.headers().set(CONTENT_TYPE, "text/html; charset=UTF-8");
 		StringBuilder buf = new StringBuilder();
@@ -173,34 +194,18 @@ public class HttpFileServerHandler extends SimpleChannelInboundHandler<FullHttpR
 		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
 	}
 
-	private static final Pattern INSECURE_URI = Pattern.compile(".*[<>&\"].*");
-	private String sanitizeUri(String uri) {
-		try{
-			uri = URLDecoder.decode(uri, "UTF-8");
-		}catch(UnsupportedEncodingException e){
-			try{
-				uri = URLDecoder.decode(uri, "ISO-8859-1");
-			}catch (UnsupportedEncodingException e1){
-				throw new Error();
-			}
-		}
-		if(!uri.startsWith(url)){
-			return null;
-		}
-
-		if(!uri.startsWith("/")){
-			return null;
-		}
-		uri = uri.replace('/', File.separatorChar);
-		if(uri.contains(File.separator + '.') || uri.contains('.' + File.separator) || uri.startsWith(".") || uri.endsWith(".") || INSECURE_URI.matcher(uri).matches()){
-			return null;
-		}
-		return System.getProperty("user.dir") + File.separator + uri;
+	private static void sendRedirect(ChannelHandlerContext ctx, String newUri) {
+		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, FOUND);
+		response.headers().set(LOCATION, newUri);
+		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
 	}
 
-	private static void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
-		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status.toString() + "\r\n", CharsetUtil.UTF_8));
-		response.headers().set(CONTENT_TYPE, "text/plain;charset=UTF-8");
+	private static void sendError(ChannelHandlerContext ctx,
+								  HttpResponseStatus status) {
+		FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1,
+				status, Unpooled.copiedBuffer("Failure: " + status.toString()
+				+ "\r\n", CharsetUtil.UTF_8));
+		response.headers().set(CONTENT_TYPE, "text/plain; charset=UTF-8");
 		ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
 	}
 
