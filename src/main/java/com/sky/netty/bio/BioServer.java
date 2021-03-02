@@ -23,12 +23,7 @@ public class BioServer {
         while(true){
             final Socket socket = server.accept();
             System.out.println("连接到一个客户端");
-            pool.execute(new Runnable() {
-                @Override
-                public void run() {
-                    handler(socket);
-                }
-            });
+            pool.execute(() -> handler(socket));
         }
     }
 
