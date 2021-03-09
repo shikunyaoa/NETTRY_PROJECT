@@ -8,7 +8,7 @@ import java.nio.channels.FileChannel;
 
 /**
  * @author sky
- * @description: 文件通道
+ * @description: 文件通道:写入数据
  * @date: 2021-03-08
  */
 public class NioFileChannel {
